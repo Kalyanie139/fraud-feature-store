@@ -13,23 +13,25 @@ This project is the infrastructure piece a fraud model would actually need: a li
 Stores typed fraud features per account (risk score, transaction velocity, device fingerprint, account age, flagged status). Each entry has a TTL and a risk tier (GREEN, AMBER, RED). When the store hits capacity, it evicts GREEN entries first, then AMBER, and only touches RED as a last resort, verified under concurrent load including the edge case where only RED entries remain. Accessible two ways: a raw TCP server with a simple text protocol, and a REST API over HTTP, both backed by the same shared store. Thread-safe under concurrent access, with a documented fix for a check-then-act race condition found during testing (see below).
 
 ## Architecture
-
+'''
 fraud-feature-store/
 ├── model/
-│   ├── FeatureType.java      Typed feature categories (RISK_SCORE, IS_FLAGGED, etc.)
-│   ├── RiskTier.java         GREEN / AMBER / RED classification
-│   └── FeatureEntry.java     A single stored value with TTL and risk tier
+│   ├── FeatureType.java       Typed feature categories (RISK_SCORE, IS_FLAGGED, etc.)
+│   ├── RiskTier.java          GREEN / AMBER / RED classification
+│   └── FeatureEntry.java      A single stored value with TTL and risk tier
 ├── store/
-│   └── FeatureStore.java     Core engine: HashMap + TTL expiry + tier-aware eviction
+│   └── FeatureStore.java      Core engine: HashMap + TTL expiry + tier-aware eviction
 ├── command/
-│   └── CommandParser.java    Parses raw TCP text into typed commands
+│   └── CommandParser.java     Parses raw TCP text into typed commands
 └── server/
     ├── FeatureStoreServer.java   TCP server, custom text protocol
     └── RestApiServer.java        HTTP server, REST endpoints
-
+'''
+    
 Both servers hold a reference to the same FeatureStore instance, so a value
 written over TCP is immediately visible to a read over REST, and vice versa.
 
+'''
                 +----------------+
                 |   REST Client  |
                 +--------+-------+
@@ -43,7 +45,7 @@ written over TCP is immediately visible to a read over REST, and vice versa.
                          v
 +-------------+   +-------------+   +-------------+
 | TCP Client  |-->| TCP Server  |-->| FeatureStore|
-+-------------+   +-------------+   +------+------+ 
++-------------+   +-------------+   +------+------+
                                          |
                                          |
                 +------------------------+
@@ -54,6 +56,7 @@ written over TCP is immediately visible to a read over REST, and vice versa.
         | FeatureType    |
         | RiskTier       |
         +----------------+
+```
 
 ## Running it
 
