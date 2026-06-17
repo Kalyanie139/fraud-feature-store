@@ -13,7 +13,8 @@ This project is the infrastructure piece a fraud model would actually need: a li
 Stores typed fraud features per account (risk score, transaction velocity, device fingerprint, account age, flagged status). Each entry has a TTL and a risk tier (GREEN, AMBER, RED). When the store hits capacity, it evicts GREEN entries first, then AMBER, and only touches RED as a last resort, verified under concurrent load including the edge case where only RED entries remain. Accessible two ways: a raw TCP server with a simple text protocol, and a REST API over HTTP, both backed by the same shared store. Thread-safe under concurrent access, with a documented fix for a check-then-act race condition found during testing (see below).
 
 ## Architecture
-'''
+
+\`\`\`
 fraud-feature-store/
 ├── model/
 │   ├── FeatureType.java       Typed feature categories (RISK_SCORE, IS_FLAGGED, etc.)
@@ -26,12 +27,11 @@ fraud-feature-store/
 └── server/
     ├── FeatureStoreServer.java   TCP server, custom text protocol
     └── RestApiServer.java        HTTP server, REST endpoints
-'''
-    
-Both servers hold a reference to the same FeatureStore instance, so a value
-written over TCP is immediately visible to a read over REST, and vice versa.
+\`\`\`
 
-'''
+Both servers hold a reference to the same FeatureStore instance, so a value written over TCP is immediately visible to a read over REST, and vice versa.
+
+\`\`\`
                 +----------------+
                 |   REST Client  |
                 +--------+-------+
@@ -56,17 +56,55 @@ written over TCP is immediately visible to a read over REST, and vice versa.
         | FeatureType    |
         | RiskTier       |
         +----------------+
-```
+\`\`\`
 
 ## Running it
 
 Requires Java 21 and Maven.
 
+\`\`\`
 mvn compile
 java -cp target/classes Main
+\`\`\`
 
 This starts the REST API on port 8080 and the TCP server on port 9999.
 
+TCP protocol example:
+
+\`\`\`
+nc localhost 9999
+SET acc_123 RISK_SCORE 0.87 RED 300
+GET acc_123 RISK_SCORE
+SHEET acc_123
+\`\`\`
+
+REST API example:
+
+\`\`\`
+curl -X POST http://localhost:8080/features/acc_123/RISK_SCORE -d "0.87,RED,300"
+curl http://localhost:8080/features/acc_123/RISK_SCORE
+curl http://localhost:8080/sheet/acc_123
+\`\`\`
+
+## Testing
+
+\`\`\`
+mvn test
+\`\`\`
+
+7 JUnit tests cover basic set/get, TTL expiry, tier-aware eviction including the RED-only fallback case, delete behavior, and a concurrency stress test (10 threads, 2000 inserts) confirming the store never exceeds its configured capacity.
+
+## A real bug found and fixed during development
+
+Early testing revealed a check-then-act race condition: set() checked if the store was at capacity and then called evict() as two separate steps, allowing two threads to both observe a full store and both evict, silently violating the capacity invariant under concurrent load. Fixed by making set() synchronized, verified via repeated concurrent stress tests. This is a known tradeoff: synchronized serializes all writes, even across unrelated accounts. A future iteration could use per-key locking for better throughput.
+
+## Known limitations
+
+No persistence: data is in-memory only and lost on restart. No authentication on either the TCP or REST interface. No graceful shutdown; currently stopped via process kill. Single coarse lock rather than per-key locking, as noted above. These are intentional scope cuts for a focused systems project, not oversights, and I'm happy to discuss how I'd address each in a production context.
+
+## Tech
+
+Java 21, Maven, JUnit 5, raw sockets via java.net.ServerSocket, com.sun.net.httpserver.HttpServer with no external web framework.
 TCP protocol example:
 nc localhost 9999
 SET acc_123 RISK_SCORE 0.87 RED 300
