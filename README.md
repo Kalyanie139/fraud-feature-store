@@ -106,31 +106,3 @@ No persistence: data is in-memory only and lost on restart. No authentication on
 ## Tech
 
 Java 21, Maven, JUnit 5, raw sockets via java.net.ServerSocket, com.sun.net.httpserver.HttpServer with no external web framework.
-TCP protocol example:
-nc localhost 9999
-SET acc_123 RISK_SCORE 0.87 RED 300
-GET acc_123 RISK_SCORE
-SHEET acc_123
-
-REST API example:
-curl -X POST http://localhost:8080/features/acc_123/RISK_SCORE -d "0.87,RED,300"
-curl http://localhost:8080/features/acc_123/RISK_SCORE
-curl http://localhost:8080/sheet/acc_123
-
-## Testing
-
-mvn test
-
-7 JUnit tests cover basic set/get, TTL expiry, tier-aware eviction including the RED-only fallback case, delete behavior, and a concurrency stress test (10 threads, 2000 inserts) confirming the store never exceeds its configured capacity.
-
-## A real bug found and fixed during development
-
-Early testing revealed a check-then-act race condition: set() checked if the store was at capacity and then called evict() as two separate steps, allowing two threads to both observe a full store and both evict, silently violating the capacity invariant under concurrent load. Fixed by making set() synchronized, verified via repeated concurrent stress tests. This is a known tradeoff: synchronized serializes all writes, even across unrelated accounts. A future iteration could use per-key locking for better throughput.
-
-## Known limitations
-
-No persistence: data is in-memory only and lost on restart. No authentication on either the TCP or REST interface. No graceful shutdown; currently stopped via process kill. Single coarse lock rather than per-key locking, as noted above. These are intentional scope cuts for a focused systems project, not oversights, and I'm happy to discuss how I'd address each in a production context.
-
-## Tech
-
-Java 21, Maven, JUnit 5, raw sockets via java.net.ServerSocket, com.sun.net.httpserver.HttpServer with no external web framework.
