@@ -1,11 +1,15 @@
 package model;
 
-public class FeatureEntry {
+import java.io.Serializable;
+
+public class FeatureEntry implements Serializable {
+    private static final long serialVersionUID = 1L;
+
     private final String accountId;
     private final FeatureType featureType;
-    private final Object value;           // typed value
+    private final Object value;
     private final RiskTier riskTier;
-    private final long expiryTimeMs;      // System.currentTimeMillis() + ttl
+    private final long expiryTimeMs;
 
     public FeatureEntry(String accountId, FeatureType featureType,
                         Object value, RiskTier riskTier, long ttlSeconds) {

@@ -4,7 +4,14 @@ package store;
 import model.FeatureEntry;
 import model.FeatureType;
 import model.RiskTier;
-
+import java.util.HashMap;
+import java.util.Map; 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -103,5 +110,34 @@ public class FeatureStore {
         System.out.println("=== FeatureStore Stats ===");
         System.out.println("Entries: " + store.size() + "/" + maxCapacity);
         store.forEach((k, v) -> System.out.println("  " + v));
+
+    
     }
+    private static final String SNAPSHOT_FILE = "fraudfs_snapshot.dat";
+
+public synchronized void saveToDisk() {
+    try (ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(SNAPSHOT_FILE))) {
+        out.writeObject(new HashMap<>(store)); // copy to a plain HashMap for serialization
+        System.out.println("Saved " + store.size() + " entries to " + SNAPSHOT_FILE);
+    } catch (IOException e) {
+        System.out.println("Failed to save snapshot: " + e.getMessage());
+    }
+}
+
+@SuppressWarnings("unchecked")
+public synchronized void loadFromDisk() {
+    File file = new File(SNAPSHOT_FILE);
+    if (!file.exists()) {
+        System.out.println("No snapshot found, starting with empty store.");
+        return;
+    }
+
+    try (ObjectInputStream in = new ObjectInputStream(new FileInputStream(file))) {
+        Map<String, FeatureEntry> loaded = (Map<String, FeatureEntry>) in.readObject();
+        store.putAll(loaded);
+        System.out.println("Loaded " + loaded.size() + " entries from " + SNAPSHOT_FILE);
+    } catch (IOException | ClassNotFoundException e) {
+        System.out.println("Failed to load snapshot: " + e.getMessage());
+    }
+}
 }

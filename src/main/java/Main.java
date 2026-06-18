@@ -8,10 +8,21 @@ public class Main {
     public static void main(String[] args) throws IOException {
         FeatureStore store = new FeatureStore(100);
 
+        // Load persisted data on startup (we'll add this in Step 2)
+        store.loadFromDisk();
+
         RestApiServer restServer = new RestApiServer(8080, store);
         restServer.start();
 
         FeatureStoreServer tcpServer = new FeatureStoreServer(9999, store);
-        tcpServer.start(); // blocks forever, so put this last
+
+        // Register shutdown hook BEFORE starting the blocking TCP server
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("\nShutdown signal received. Saving state...");
+            store.saveToDisk();
+            System.out.println("Shutdown complete.");
+        }));
+
+        tcpServer.start(); // blocks forever
     }
 }

@@ -36,10 +36,22 @@ public class RestApiServer {
         System.out.println("RestApiServer listening on port " + port);
     }
 
+    private static final String API_KEY = System.getenv().getOrDefault("FRAUDFS_API_KEY", "dev-only-key-change-me");
+
+    private boolean isAuthorized(HttpExchange exchange) {
+        String providedKey = exchange.getRequestHeaders().getFirst("X-API-Key");
+        return API_KEY.equals(providedKey);
+    }
+
     // Handles GET and POST for /features/{accountId}/{featureType}
     private class FeatureHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
+            if (!isAuthorized(exchange)) {
+                sendResponse(exchange, 401, "Unauthorized: missing or invalid X-API-Key");
+                return;
+            }
+
             String path = exchange.getRequestURI().getPath(); // e.g. /features/acc_123/RISK_SCORE
             String[] parts = path.split("/");
 
@@ -76,7 +88,7 @@ public class RestApiServer {
         }
 
         private void handlePost(HttpExchange exchange, String accountId, FeatureType featureType) throws IOException {
-            String body = readBody(exchange); // expected format: value,riskTier,ttlSeconds  e.g. "0.87,RED,300"
+            String body = readBody(exchange); // expected format: value,riskTier,ttlSeconds e.g. "0.87,RED,300"
             String[] fields = body.trim().split(",");
 
             if (fields.length != 3) {
@@ -101,6 +113,11 @@ public class RestApiServer {
     private class SheetHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
+            if (!isAuthorized(exchange)) {
+                sendResponse(exchange, 401, "Unauthorized: missing or invalid X-API-Key");
+                return;
+            }
+
             String path = exchange.getRequestURI().getPath(); // e.g. /sheet/acc_123
             String[] parts = path.split("/");
 
@@ -117,12 +134,18 @@ public class RestApiServer {
 
     private static Object parseValue(FeatureType type, String raw) {
         switch (type) {
-            case RISK_SCORE: return Double.parseDouble(raw);
-            case IS_FLAGGED: return Boolean.parseBoolean(raw);
-            case TRANSACTION_VELOCITY: return Integer.parseInt(raw);
-            case ACCOUNT_AGE_DAYS: return Long.parseLong(raw);
-            case DEVICE_FINGERPRINT: return raw;
-            default: throw new IllegalArgumentException("Unhandled type: " + type);
+            case RISK_SCORE:
+                return Double.parseDouble(raw);
+            case IS_FLAGGED:
+                return Boolean.parseBoolean(raw);
+            case TRANSACTION_VELOCITY:
+                return Integer.parseInt(raw);
+            case ACCOUNT_AGE_DAYS:
+                return Long.parseLong(raw);
+            case DEVICE_FINGERPRINT:
+                return raw;
+            default:
+                throw new IllegalArgumentException("Unhandled type: " + type);
         }
     }
 
